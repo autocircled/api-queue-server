@@ -1,7 +1,22 @@
 const express = require('express');
+const fetch = require('node-fetch');
 const app = express();
 const PORT = process.env.PORT || 3099;
 
+// Enable CORS for all routes
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+  res.header('Access-Control-Allow-Credentials', true);
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+});
 app.use(express.json());
 
 class APIQueue {
@@ -69,21 +84,58 @@ class APIQueue {
     }
 
     async callMainAPI(req) {
-        // Replace this with your actual main API call
-        console.log(`📞 Calling main API with:`, req);
+        const url = `https://smsgen.net/api/get-number/${req.data.api_key}?country_id=${req.data.country_id}&operator_id=${req.data.operator_id}`;
+        
         try {
-            const response = await fetch(`https://smsgen.net/api/get-number/${req.data.api_key}?country_id=${req.data.country_id}&operator_id=${req.data.operator_id}`);
+            console.log(`🌐 Making request to: ${url}`);
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                timeout: 10000 // 10 seconds timeout
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
             const result = await response.json();
-            console.log(`📞 Main API response:`, result);
+            console.log(`✅ Main API response:`, result);
+            
             return {
                 status: result.status === 'success',
-                phone_number: result.data.phone_number || ""
-            }
+                phone_number: result.data?.phone_number || "",
+                rawResponse: result
+            };
         } catch (error) {
+            console.error('❌ API call failed:', {
+                error: error.message,
+                url,
+                data: req.data,
+                stack: error.stack
+            });
+            
+            // Retry logic could be added here if needed
             return {
                 status: false,
-                phone_number: ""
-            }
+                phone_number: "",
+                error: error.message || 'Unknown error occurred',
+                retryable: isRetryableError(error)
+            };
+        }
+        
+        function isRetryableError(error) {
+            // List of error codes that might be worth retrying
+            const retryableErrors = [
+                'ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED',
+                'ENOTFOUND', 'EAI_AGAIN'
+            ];
+            return retryableErrors.some(code => 
+                error.code === code || 
+                (error.cause && error.cause.code === code)
+            );
         }
     }
 
@@ -111,8 +163,6 @@ app.post('/api/call', async (req, res) => {
                 error: 'Missing required fields'
             });
         }
-        
-        console.log(`📥 Received API call:`, req.body);
         
         const result = await apiQueue.addToQueue({
             data: req.body,
