@@ -24,7 +24,7 @@ class APIQueue {
         this.queue = [];
         this.processing = false;
         this.lastCallTime = 0;
-        this.MIN_INTERVAL = 5000; // 5 seconds in milliseconds
+        this.MIN_INTERVAL = 10000; // 5 seconds in milliseconds
     }
 
     async addToQueue(apiCall) {
