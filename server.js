@@ -2,6 +2,7 @@ const express = require('express');
 const fetch = require('node-fetch');
 const app = express();
 const PORT = process.env.PORT || 3099;
+const delay = process.argv[2] ? parseInt(process.argv[2], 10) : 10000;
 
 // Enable CORS for all routes
 app.use((req, res, next) => {
@@ -24,7 +25,7 @@ class APIQueue {
         this.queue = [];
         this.processing = false;
         this.lastCallTime = 0;
-        this.MIN_INTERVAL = 5000; // 5 seconds in milliseconds
+        this.MIN_INTERVAL = delay;
     }
 
     async addToQueue(apiCall) {
@@ -193,5 +194,5 @@ app.get('/queue/clear', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`🚀 Queue Management Server running on port ${PORT}`);
-    console.log(`⏰ API calls limited to 1 every 5 seconds`);
+    console.log(`⏰ API calls limited to 1 every ${delay / 1000} seconds`);
 });
